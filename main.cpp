@@ -1,7 +1,6 @@
+#include <any>
 #include <functional>
 #include <iostream>
-#include <map>
-#include <any>
 
 // template <typename T, typename RetTypeSig, typename RetTypeSlot, typename R, typename... Types>
 // static inline void connect(T *sender, RetTypeSig (T::*signal)(Types...), R *receiver, RetTypeSlot (R::*slot)(Types...)) {
@@ -18,7 +17,8 @@ public:
     void operator()(Args... args) {
         for (auto& slot : slots) {
             try {
-                std::any_cast<std::function<void(Args...)>>(slot.second)(std::forward<Args>(args)...);
+              std::any_cast<std::function<void(Args...)>>(slot)(
+                  std::forward<Args>(args)...);
             } catch (const std::bad_any_cast& e) {
                 std::cerr << "Bad any cast: " << e.what() << std::endl;
             }
@@ -28,12 +28,7 @@ public:
     template<typename T>
     void connect(T* object, void (T::*slot)(Args...)) {
         std::function<void(Args...)> f = std::bind_front(slot, object);
-        slots[id++] = f;
-    }
-
-    template<typename R>
-    void connect(R* object, std::function<void(Args...)> slot) {
-        slots[id++] = slot;
+        slots.push_back(f);
     }
 
     template<typename T>
@@ -56,16 +51,16 @@ public:
     }
 
 private:
-    std::map<int, std::any> slots;
-    int id = 0;
+  std::vector<std::any> slots;
+  int id = 0;
 
-    template<typename T, typename... U>
-    size_t getAddress(std::function<T(U...)> f) {
-        std::cout << "Getting address of function" << std::endl;
-        typedef T(fnType)(U...);
-        fnType ** fnPointer = f.template target<fnType*>();
-        return (size_t) *fnPointer;
-    }
+  template <typename T, typename... U>
+  size_t getAddress(std::function<T(U...)> f) {
+    std::cout << "Getting address of function" << std::endl;
+    typedef T(fnType)(U...);
+    fnType **fnPointer = f.template target<fnType *>();
+    return (size_t)*fnPointer;
+  }
 };
 
 class MyClass {
@@ -91,11 +86,10 @@ int main() {
     MyClass obj;
 
     connect(&obj.mySignal, &obj, &MyClass::mySlot);
-
     obj.mySignal(2,2);
 
-    disconnect(&obj.mySignal, &obj, &MyClass::mySlot);
-
-    obj.mySignal(3,3);
+    // not working
+    // disconnect(&obj.mySignal, &obj, &MyClass::mySlot);
+    // obj.mySignal(3,3);
     return 0;
 }
